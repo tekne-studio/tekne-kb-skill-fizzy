@@ -1,6 +1,6 @@
 # tekne-kb-skill-fizzy
 
-A Claude Code skill that compares a project's [kb](https://npm.tekne.studio) roadmap with its [Fizzy](https://fizzy.do) board and applies the differences you approve, on both sides.
+A Claude Code skill that compares a project's [kb](https://github.com/tekne-studio/tekne-kb) roadmap with its [Fizzy](https://fizzy.do) board and applies the differences you approve, on both sides.
 
 The roadmap holds the facts and the order. The board is a view of it and the inbox of meetings. kb knows nothing about this skill: install it only if you use Fizzy.
 
