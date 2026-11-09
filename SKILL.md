@@ -1,81 +1,63 @@
 ---
 name: fizzy-roadmap
-description: Compare a project's kb roadmap with its Fizzy board and apply the approved differences on both sides. Use after a meeting held on Fizzy, or when the person asks to compare, sync or update the board or the roadmap, or to bring Fizzy cards into the roadmap. For a single Fizzy action with no roadmap involved, use the fizzy skill.
+description: Keep a project's kb roadmap and its Fizzy board aligned before a meeting, after one, or when an item is delivered. Use when the person asks to compare, sync or update the board or the roadmap, or to bring Fizzy cards into the roadmap. For a single Fizzy action with no roadmap involved, use the fizzy skill.
 ---
 
 # Fizzy and the roadmap
 
-The roadmap holds the facts and the order. The board is a view of the roadmap and the inbox of meetings. This skill reads both, shows the differences, and changes only what the person approves.
+The roadmap owns the work, its done line and the order. The board is a selection of it for meetings and the inbox of those meetings; its columns own what is in progress. A kb question owns who an item waits on, mirrored in a `waiting: Name` tag. Decisions live only in kb. Reading is free; a change on either side waits for the person's answer. This file has the commands it needs: load the `fizzy` skill only for one it lacks.
 
-Load the `fizzy` skill first: it has the commands, flags and field names.
+**At delivery**, read the item's `<!-- card:N -->` before it leaves the page and run `fizzy card close N`. When the project's AGENTS.md says to close it, report the number and ask nothing. That is the whole task.
 
-## 1. Read the project
+`.fizzy.yaml` holds the token: read settings with `fizzy config show`, and pass `--exclude=.fizzy.yaml` to any `grep -r`. With no board yet, follow Set up a project in the README next to this file.
 
-- Board: `.fizzy.yaml` in the repository. When it is missing, ask the person to run `fizzy setup` in the repository, in their own terminal. That file holds the token in plain text: confirm with `git check-ignore .fizzy.yaml` that git ignores it, add it to `.gitignore` when it does not, and print only its keys.
-- Names: `kb.config.ts` → `roadmap: { file, now, later, doneWhen }`. The sections and the done line carry these names, in the project's language.
-- Roadmap: read `docs/<file>` directly, because `kb roadmap --json` leaves out item bodies and the text of steps and wishes.
-- Who an item waits on: `bun kb question list`.
+## 1. Read
 
-## 2. Read the board (read only)
+From the repository root, run `bun <this skill's folder>/read.ts [since] [--wishes]`. It changes nothing and prints each item with its card, lane, tags and blockers, then the findings and the activity per card. `since` defaults to the roadmap's last commit; pass the last meeting's date when you know it. `--wishes` also lists the wishes with no card.
+
+The pair is `<!-- card:N -->`: on the line below the `###` heading, or at the end of the wish or table line, outside the heading so the anchor holds. Match unmarked cards by meaning, across languages, and propose a marker with each match.
+
+Open an item's body, a card or its comments only for what you are about to propose. After a meeting, also open cards whose item has checkboxes: step, tag and description edits leave no trace in the activity.
+
+## 2. Propose
+
+Number the proposals, with the card and the roadmap section on each, in lettered groups when there are many. Before a meeting use the roadmap rows, after one the board rows, and both when asked to compare. Order exists only in the roadmap, and detail changes only there: leave both out.
+
+| Found | Propose |
+|---|---|
+| **Board:** new card in Maybe | a wish, one line under the later section |
+| new card in a work column | a `###` item under the now section; ask for its place and done line |
+| card renamed with a new meaning | the item renamed; `kb check` reports any `--unblocks` link to the old anchor |
+| step completed | `- [x]` |
+| card closed | the item stays until its done line is met |
+| comment | the person chooses: `kb decision new`, `kb question add`, a step, or nothing |
+| **Roadmap:** item delivered and gone | close the card |
+| item dropped by a decision | ask: close or postpone |
+| question with `--unblocks` added or resolved | add or remove the `waiting:` tag; ask who when the owner is blank |
+| new item or wish that passes the selection | a thin card |
+
+**Selection.** A card exists for what the people in the meeting need to see or act on. Product work and work waiting on someone go to Maybe. A wish someone asked for in a meeting goes to Not Now, where it does not expire. Internal engineering and other wishes stay off, reported as a count.
+
+**A thin card** is two or three sentences on what it is and why it matters to those people, the done line, and the item's name. Steps are only what a meeting will tick off. New cards take the board's language, new items the roadmap's.
+
+## 3. Apply what was approved
+
+- Show the exact text of every card you will write. For more than five, draft in a temporary file and create each card from it.
+- Roadmap first: edit, `kb check`, show `git diff`. Decisions and questions go through `kb` commands only. Commit when the person asks.
+- Board next, then run `read.ts` again and report each change with its card number.
+- To retire a card, close it. Delete one only when the person names it for deletion.
 
 ```bash
-fizzy column list --jq '[.data[] | {id, name, kind}]'
-fizzy card list --column maybe --all --jq '[.data[] | {number, title, last_active_at}]'
-fizzy card list --column COLUMN_ID --all --jq '[.data[] | {number, title, last_active_at, tags: [.tags[].title]}]'
-fizzy card list --indexed-by closed --all --jq '[.data[] | {number, title, last_active_at}]'
-fizzy card list --indexed-by not_now --all --jq '[.data[] | {number, title}]'
+fizzy card create --board B --title T --description_file F --jq '.data.number'   # lands in Maybe; markdown works
+fizzy card update N --title T --description_file F
+fizzy card show N --jq '.data | {description, tags, steps: [(.steps // [])[] | {id, content, completed}]}'
+fizzy comment list --card N --jq '[.data[] | select(.creator.role != "system") | {created_at, by: .creator.name, text: .body.plain_text}]'
+fizzy card tag N --tag "waiting: Ana"   # toggles, so read the tags first
+fizzy step create --card N --content T
+fizzy step update STEP_ID --card N --completed
+fizzy column list --jq '[.data[] | select(.pseudo | not) | {id, name}]'
+fizzy card column N --column COLUMN_ID
+fizzy card postpone N
+fizzy card close N
+fizzy board entropy B --auto_postpone_period_in_days 30   # 3, 7, 11, 30, 90 or 365
 ```
-
-Open a card with `fizzy card show N --jq '.data | {description, steps: (.steps // [])}'` when its match needs comparing; `steps` comes null on a card without steps. Read its comments with `fizzy comment list --card N --jq '[.data[] | select(.creator.role != "system") | {created_at, by: .creator.name, text: .body.plain_text}]'` when it was active after the last roadmap change; the filter drops the automatic "moved this to" entries.
-
-## 3. Match items and cards
-
-- Match by meaning. The roadmap and the board can be in different languages.
-- When a match is doubtful, ask, then record it as `<!-- card:12 -->` on the line below the `###` heading, or at the end of the wish line. Keep it out of the heading, which would change the anchor.
-- Renaming an item changes its anchor and breaks `--unblocks roadmap.md#item`; `kb check` reports it.
-
-## 4. Show the differences
-
-Group them, with the card number and the roadmap section on every line:
-
-1. Cards only on the board
-2. Items only in the roadmap
-3. Pairs that differ: title, description, steps, or lane
-4. Closed cards whose item is still in the roadmap
-5. Open cards whose item left the roadmap
-6. Comments that still have no home
-
-To tell which side changed, compare the card's `last_active_at` with `git log -1 --format=%cI -- docs/<file>`. That is a hint: when either side could be the newer one, show both texts and let the person choose.
-
-The order lives only in the roadmap, because the board has no card positions. Leave order out of the differences.
-
-Columns show what is being worked on now, and the now section lists what comes next, so an item of the now section with its card in Maybe is normal. Report a lane difference only when a wish has its card in a work column.
-
-## 5. Propose, per difference
-
-| On the board | In the roadmap |
-|---|---|
-| new card in Maybe | a wish, one line under the later section |
-| new card in a work column | a `###` item under the now section; ask for its place in the order and its done line (`kb check` warns until it exists) |
-| title, description or steps edited | the item updated |
-| step completed | `- [x]` |
-| card closed | the item stays; check its done line, since an item leaves in the delivery that meets it |
-| comment | the person chooses the home: a decision (`bun kb decision new`), a question (`bun kb question add`) or a step |
-
-| In the roadmap | On the board |
-|---|---|
-| new item in the now section | a card in Maybe, with the body and the done line as description and the checkboxes as steps |
-| new wish | a card in Maybe |
-| item delivered and gone | `fizzy card close` |
-| item dropped by a decision | ask: close or postpone |
-| question that unblocks the item | a tag with who unblocks it, such as `waiting: Ana` |
-
-New cards take the language the board already uses. New roadmap items take the language of the roadmap.
-
-## 6. Apply what was approved
-
-- Number the proposals and wait for the person to pick: some numbers, or all. Reading is free; every card created, changed or closed needs that answer.
-- Roadmap first: edit the file, run `bun kb check`, show `git diff` of the roadmap. Use `kb` commands for decisions and questions, which are never edited by hand.
-- Board next, and report each change with its card number.
-- To retire a card, close it. Delete a card only when the person names it for deletion.
-- Leave the roadmap changes in the working tree, and commit when the person asks.
